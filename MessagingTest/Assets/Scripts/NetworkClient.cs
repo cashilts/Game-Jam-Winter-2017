@@ -4,9 +4,12 @@ using System.Text;
 using System;
 using UnityEngine;
 using UnityEngine.UI;
+using System.Threading;
 
 public static class NetworkClient {
 
+    static ManualResetEvent allDone = new ManualResetEvent(true);
+    static MessageInterface callbackClass;
     public static void connectToHost(AsyncCallback callFunction) {
         IPHostEntry ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
         IPAddress ipAdress = ipHostInfo.AddressList[0];
@@ -21,6 +24,7 @@ public static class NetworkClient {
 
     public static void ParseResponse(IAsyncResult ar, MessageInterface callback)
     {
+        callbackClass = callback;
         stateObject state = (stateObject)ar.AsyncState;
 
         Socket handler = state.workSocket;
@@ -94,4 +98,37 @@ public static class NetworkClient {
             //Get another host name.
         }
     }
+    public static int getFreePort() {
+        TcpListener l = new TcpListener(IPAddress.Loopback, 0);
+        l.Start();
+        int port = ((IPEndPoint)l.LocalEndpoint).Port;
+        l.Stop();
+        return port;
+
+    }
+    public static void startListener(int port)
+    {
+        byte[] bytes = new byte[1024];
+        IPHostEntry ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
+        IPAddress ipAdress = ipHostInfo.AddressList[0];
+        IPEndPoint localEndPoint = new IPEndPoint(ipAdress, port);
+
+        Socket listener = new Socket(ipAdress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+        listener.Bind(localEndPoint);
+        listener.Listen(10);
+        listener.BeginAccept(new AsyncCallback(AcceptCallback), listener);
+    }
+
+
+    public static void AcceptCallback(IAsyncResult ar)
+    {
+        Socket listener = (Socket)ar.AsyncState;
+        Socket handler = listener.EndAccept(ar);
+        allDone.Set();
+
+        stateObject state = new stateObject();
+        state.workSocket = handler;
+        handler.BeginReceive(state.buffer, 0, stateObject.bufferSize, 0, new AsyncCallback(callbackClass.getCurrentChats), state);
+    }
+
 }

@@ -97,19 +97,52 @@ namespace MessagingServer
                     {
                         state.sb.Clear();
                         content = "No chats available";
-                        byte[] bytes = new byte[1024];
-                        bytes = Encoding.ASCII.GetBytes(content);
-                        handler.Send(bytes);
-                        handler.BeginReceive(state.buffer, 0, stateObject.bufferSize, 0, new AsyncCallback(ReadCallback), state);
+
                     }
-                }
-                else if (content.StartsWith("StartChat")){
-                    state.sb.Clear();
-                    content = content.Remove(0, 9);
+                    else
+                    {
+                        state.sb.Clear();
+                        state.sb.Append("Chats");
+                        List<string> chatNames = Chats.Keys.ToList<string>();
+                        int chatNum = chatNames.Count;
+                        for (int i = 0; i < chatNum; i++)
+                        {
+                            state.sb.Append(chatNames[i] + "\n");
+                        }
+                        content = state.sb.ToString();
+                        state.sb.Clear();
+                    }
                     byte[] bytes = new byte[1024];
-                    bytes = Encoding.ASCII.GetBytes(content + " has been registered");
+                    bytes = Encoding.ASCII.GetBytes(content);
                     handler.Send(bytes);
                     handler.BeginReceive(state.buffer, 0, stateObject.bufferSize, 0, new AsyncCallback(ReadCallback), state);
+                }
+                else if (content.StartsWith("StartChat"))
+                {
+                    state.sb.Clear();
+                    content = content.Remove(0, 9);
+                    int endOfName = content.IndexOf('\n');
+                    string name = content.Substring(0, endOfName);
+                    content = content.Remove(0, endOfName + 1);
+                    int portNum = Convert.ToInt32(content);
+                    IPEndPoint otherEnd = handler.RemoteEndPoint as IPEndPoint;
+                    otherEnd.Port = portNum;
+                    Chats.Add(name, otherEnd);
+                    byte[] bytes = new byte[1024];
+                    bytes = Encoding.ASCII.GetBytes(name + " has been registered");
+                    handler.Send(bytes);
+                    handler.BeginReceive(state.buffer, 0, stateObject.bufferSize, 0, new AsyncCallback(ReadCallback), state);
+                }
+                else if (content.StartsWith("Connect")) {
+                    state.sb.Clear();
+                    content = content.Remove(0, 7);
+                    IPEndPoint toSend;
+                    Chats.TryGetValue(content, out toSend);
+                    byte[] bytes = new byte[1024];
+                    bytes = Encoding.ASCII.GetBytes("Endpoint" + toSend.ToString());
+                    handler.Send(bytes);
+                    handler.BeginReceive(state.buffer, 0, stateObject.bufferSize, 0, new AsyncCallback(ReadCallback), state);
+                    Console.WriteLine(toSend.ToString());
                 }
             }
         }
