@@ -96,7 +96,7 @@ namespace MessagingServer
                     if (Chats.Count == 0)
                     {
                         state.sb.Clear();
-                        content = "No chats available";
+                        content = "No chats available<EOF>";
 
                     }
                     else
@@ -109,6 +109,7 @@ namespace MessagingServer
                         {
                             state.sb.Append(chatNames[i] + "\n");
                         }
+                        state.sb.Append("<EOF>");
                         content = state.sb.ToString();
                         state.sb.Clear();
                     }
@@ -129,7 +130,7 @@ namespace MessagingServer
                     otherEnd.Port = portNum;
                     Chats.Add(name, otherEnd);
                     byte[] bytes = new byte[1024];
-                    bytes = Encoding.ASCII.GetBytes(name + " has been registered");
+                    bytes = Encoding.ASCII.GetBytes(name + " has been registered<EOF>");
                     handler.Send(bytes);
                     handler.BeginReceive(state.buffer, 0, stateObject.bufferSize, 0, new AsyncCallback(ReadCallback), state);
                 }
@@ -139,7 +140,7 @@ namespace MessagingServer
                     IPEndPoint toSend;
                     Chats.TryGetValue(content, out toSend);
                     byte[] bytes = new byte[1024];
-                    bytes = Encoding.ASCII.GetBytes("Endpoint" + toSend.ToString());
+                    bytes = Encoding.ASCII.GetBytes("Endpoint" + toSend.ToString() + "<EOF>");
                     handler.Send(bytes);
                     handler.BeginReceive(state.buffer, 0, stateObject.bufferSize, 0, new AsyncCallback(ReadCallback), state);
                     Console.WriteLine(toSend.ToString());

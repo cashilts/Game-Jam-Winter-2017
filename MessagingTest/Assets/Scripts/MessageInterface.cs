@@ -1,95 +1,100 @@
 ﻿using UnityEngine;
-using System.Collections;
 using System;
 using UnityEngine.UI;
-using System.Text;
 using System.Net.Sockets;
+using System.Net;
+using System.Collections.Generic;
 
 public class MessageInterface : MonoBehaviour {
-    public bool responseUpdated = false;
-    public string response;
-
+    NetworkClient client;
     bool hosting;
     Socket serverConnection;
-
+    List<Action<string>> queue = new List<Action<string>>();
+    List<string> queueParam = new List<string>();
 	// Use this for initialization
 	void Start () {
-        NetworkClient.connectToHost(new AsyncCallback(connected));
+        client = new NetworkClient(messageRecieved);
+        client.startConnection();
 	}
 
 
+    void messageRecieved(string message, int connection) {
+        //Connection 0 is always server
+        if (connection == 0) {
+            if (message == "Connected")
+            {
+                client.sendMessage("Chats", connection);
+                return;
+            }
+            else if (message.StartsWith("Endpoint"))
+            {
+                message = message.Remove(0, 8);
+                int endOfAddress = message.IndexOf(']');
+                string ipString = message.Substring(0, endOfAddress + 1);
+                string portString = message.Remove(0, endOfAddress + 2);
+                IPAddress ip;
+                IPAddress.TryParse(ipString, out ip);
+                int port;
+                int.TryParse(portString, out port);
+                IPEndPoint otherUser = new IPEndPoint(ip, port);
+                client.startConnection(otherUser);
+                return;
+            }
+            
+        }
+        queue.Add(handleMessage);
+        queueParam.Add(message);
+    }
 
+    void handleMessage(string message) {
+        Dropdown temp = GameObject.Find("ChatSelect").GetComponent<Dropdown>();
+        if (message == "No Chats Available")
+        {
+            temp.interactable = false;
+            temp.options.Clear();
+        }
+        if (message.StartsWith("Chats"))
+        {
+            temp.interactable = true;
+            temp.options.Clear();
+            message = message.Remove(0, 5);
+            while (message != "")
+            {
+                string chatName;
+                int endOfName = message.IndexOf('\n');
+                chatName = message.Substring(0, endOfName);
+                message = message.Remove(0, endOfName + 1);
+                temp.options.Add(new Dropdown.OptionData(chatName));
+            }
+        }
+        GameObject.Find("ResponseText").GetComponent<Text>().text = message;
 
-    void connected(IAsyncResult ar) {
-        string content = "Chats<EOF>";
-        byte[] bytes = new byte[1024];
-        bytes = Encoding.ASCII.GetBytes(content);
-        Socket handler = (Socket)ar.AsyncState;
-        serverConnection = handler;
-        handler.Send(bytes);
-        NetworkClient.stateObject state = new NetworkClient.stateObject();
-        state.workSocket = handler;
-        NetworkClient.GetResponse(state, new AsyncCallback(getCurrentChats));
-        handler.BeginReceive(state.buffer, 0, NetworkClient.stateObject.bufferSize, 0, new AsyncCallback(getCurrentChats), state);
     }
 
 
-    public void getCurrentChats(IAsyncResult ar) {
-        NetworkClient.ParseResponse(ar, this);
-    }
+
 	
 	// Update is called once per frame
 	void Update () {
-        if (responseUpdated){
-            Dropdown temp = GameObject.Find("ChatSelect").GetComponent<Dropdown>();
-            if (response == "No Chats Available")
-            {
-                temp.interactable = false;
-                temp.options.Clear();
-                temp.options.Add(new Dropdown.OptionData(response));
+        if (queue.Count > 0) {
+            for (int i = 0; i < queue.Count; i++) {
+                queue[i](queueParam[i]);
             }
-            else {
-                if (response.StartsWith("Chats"))
-                {
-                    temp.interactable = true;
-                    temp.options.Clear();
-                    response = response.Remove(0, 5);
-                    while (response != "")
-                    {
-                        string chatName;
-                        int endOfName = response.IndexOf('\n');
-                        chatName = response.Substring(0, endOfName);
-                        response = response.Remove(0, endOfName + 1);
-                        temp.options.Add(new Dropdown.OptionData(chatName));
-                    }
-                }
-                else if (response.StartsWith("Endpoint")) {
-                    response = response.Remove(0, 8);
-
-                }
-            }
-            responseUpdated = false;
         }
-       
 	}
 
     public void SubmitServerRequest() {
         int portNum = NetworkClient.getFreePort();
         byte[] bytes = new byte[1024];
-        bytes = Encoding.ASCII.GetBytes("StartChat" + GameObject.Find("NameField").transform.FindChild("Text").GetComponent<Text>().text + "\n" + portNum.ToString() + "<EOF>");
-        serverConnection.Send(bytes);
-        NetworkClient.stateObject state = new NetworkClient.stateObject();
-        state.workSocket = serverConnection;
-        NetworkClient.GetResponse(state, new AsyncCallback(getCurrentChats));
-        serverConnection.BeginReceive(state.buffer, 0, NetworkClient.stateObject.bufferSize, 0, new AsyncCallback(getCurrentChats), state);
-        NetworkClient.startListener(portNum);
+        string message = "StartChat" + GameObject.Find("NameField").transform.FindChild("Text").GetComponent<Text>().text + "\n" + portNum.ToString();
+        client.sendMessage(message, 0);
+        client.startHosting(portNum);
     }
 
     public void SubmitChatRequest() {
         string name = GameObject.Find("ChatSelect").transform.FindChild("Label").GetComponent<Text>().text;
-        byte[] bytes = new byte[1024];
-        bytes = Encoding.ASCII.GetBytes("Connect" + name + "<EOF>");
-        serverConnection.Send(bytes);
+        string message = "Connect" + name;
+        client.sendMessage(message, 0);
     }
 }
  
