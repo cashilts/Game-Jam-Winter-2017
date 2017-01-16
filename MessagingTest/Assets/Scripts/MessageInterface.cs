@@ -8,6 +8,7 @@ using System.Collections.Generic;
 public class MessageInterface : MonoBehaviour {
     NetworkClient client;
     bool hosting;
+    bool inChat;
     Socket serverConnection;
     List<Action<string>> queue = new List<Action<string>>();
     List<string> queueParam = new List<string>();
@@ -67,6 +68,9 @@ public class MessageInterface : MonoBehaviour {
                 temp.options.Add(new Dropdown.OptionData(chatName));
             }
         }
+        if (inChat) {
+            GameObject.Find("ResponseText").GetComponent<Text>().text += message;
+        }
         GameObject.Find("ResponseText").GetComponent<Text>().text = message;
 
     }
@@ -84,17 +88,26 @@ public class MessageInterface : MonoBehaviour {
 	}
 
     public void SubmitServerRequest() {
-        int portNum = NetworkClient.getFreePort();
-        byte[] bytes = new byte[1024];
-        string message = "StartChat" + GameObject.Find("NameField").transform.FindChild("Text").GetComponent<Text>().text + "\n" + portNum.ToString();
-        client.sendMessage(message, 0);
-        client.startHosting(portNum);
+        if (inChat)
+        {
+            client.sendMessage(GameObject.Find("SendField").transform.FindChild("Text").GetComponent<Text>().text, 1);
+        }
+        else
+        {
+            int portNum = NetworkClient.getFreePort();
+            string message = "StartChat" + GameObject.Find("NameField").transform.FindChild("Text").GetComponent<Text>().text + "\n" + portNum.ToString();
+            client.sendMessage(message, 0);
+            client.startHosting(portNum);
+            GameObject.Find("SendButton").transform.FindChild("ButtonText").GetComponent<Text>().text = "Send";
+            inChat = true;
+        }
     }
 
     public void SubmitChatRequest() {
         string name = GameObject.Find("ChatSelect").transform.FindChild("Label").GetComponent<Text>().text;
         string message = "Connect" + name;
         client.sendMessage(message, 0);
+        GameObject.Find("SendButton").transform.FindChild("ButtonText").GetComponent<Text>().text = "Send";
     }
 }
  
